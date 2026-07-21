@@ -41,6 +41,7 @@ from jax._src.random import prng as jax_prng
 from jax._src.state import discharge as state_discharge
 from jax._src.state import indexing
 from jax._src.state import primitives as sp
+from jax._src.state import types as state_types
 from jax._src.typing import DTypeLike
 import jax.numpy as jnp
 
@@ -1572,3 +1573,31 @@ def _conv_abstract_eval(
   )
   out_dtype = preferred_element_type or lhs.dtype
   return jax_core.ShapedArray(out_shape, out_dtype)
+
+
+AnnotateTransform = state_types.AnnotateTransform
+
+
+def annotate(ref: Any, attr: Any) -> Any:
+  """Annotates a memory reference or slice with compiler memory attributes (`LLOAttr`).
+
+  When lowered to Mosaic/TPU, attaches attributes such as `no_store`,
+  `no_bank_conflict`,
+  `no_hazard`, and `no_hazard_no_deps` to the underlying reference.
+  During pure Python execution or tracing when not lowered under Mosaic,
+  functions cleanly as a no-op returning `ref`.
+
+  Args:
+    ref: The reference to annotate.
+    attr: The memory attribute object (typically `LLOAttr`) to attach.
+
+  Returns:
+    The annotated reference.
+  """
+  if isinstance(ref, state_types.TransformedRef):
+    return state_types.TransformedRef(
+        ref.ref, (*ref.transforms, AnnotateTransform(attr))
+    )
+  if isinstance(ref, (jax_core.Tracer, state.AbstractRef)):
+    return state_types.TransformedRef(ref, (AnnotateTransform(attr),))
+  return ref

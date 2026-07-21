@@ -240,6 +240,86 @@ def check_accumulator_ref(shape: tuple[int, ...], dtype: jnp.dtype, mxu_id: int)
     )
 
 
+@jax.tree_util.register_pytree_node_class
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class LLOAttr:
+  """Attributes for LLO optimizations on Mosaic/TPU references.
+
+  Attributes:
+    no_store: Whether the reference is pure and has no VMEM/SMEM stores. HBM
+      writes/DMAs are still permitted. This affects load-store
+      rematerialization. If incorrectly applied (i.e., there are stores to ref
+      marked as `no_store`), a compiler error will be raised during lowering.
+      Applicable to VMEM and SMEM.
+    no_bank_conflict: Guarantees that accesses will not experience VMEM bank
+      conflicts. This annotation is always safe to add, although it can cause
+      performance regressions if it is incorrectly applied. Applicable to VMEM
+      and SMEM.
+    no_hazard: Suppresses RAW (i.e., read-after-write) hazard stalls on VMEM
+      refs. This annotation is always safe to add, although it can cause a
+      performance regression if it is incorrectly applied. Only applicable to
+      VMEM.
+    no_hazard_no_deps: Suppresses *all* dependency tracking for VMEM refs.
+      Warning: unlike `no_hazard`, this can impact the correctness of programs
+        that rely on implicit VMEM dependencies. Only applicable to VMEM.
+  """
+
+  no_store: bool = False
+  no_bank_conflict: bool = False
+  no_hazard: bool = False
+  no_hazard_no_deps: bool = False
+
+  def __post_init__(self):
+    has_hazard = self.no_hazard or self.no_hazard_no_deps
+    # Enforce Invariant 1: No-store slices cannot have
+    # Read-After-Write (RAW) delays or hazards.
+    if self.no_store and has_hazard:
+      raise ValueError(
+          "LLO attribute contradiction: reference is marked 'no_store'"
+          " yet also specifies RAW hazard flags ('no_hazard' or"
+          " 'no_hazard_no_deps'). No-store memory slices cannot be written to."
+      )
+    # Enforce Invariant 2: Avoid redundant hazard directives; no_hazard_no_deps
+    # strictly subsumes no_hazard.
+    if self.no_hazard and self.no_hazard_no_deps:
+      raise ValueError(
+          "LLO attribute redundancy: reference specifies both 'no_hazard'"
+          " and 'no_hazard_no_deps'. 'no_hazard_no_deps' strictly subsumes"
+          " 'no_hazard'."
+      )
+
+  def tree_flatten(self):
+    return (), (
+        self.no_store,
+        self.no_bank_conflict,
+        self.no_hazard,
+        self.no_hazard_no_deps,
+    )
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):
+    del children
+    no_store, no_bank_conflict, no_hazard, no_hazard_no_deps = aux_data
+    return cls(
+        no_store=no_store,
+        no_bank_conflict=no_bank_conflict,
+        no_hazard=no_hazard,
+        no_hazard_no_deps=no_hazard_no_deps,
+    )
+
+  def __str__(self) -> str:
+    params = []
+    if self.no_store:
+      params.append("no_store = true")
+    if self.no_bank_conflict:
+      params.append("no_bank_conflict = true")
+    if self.no_hazard:
+      params.append("no_hazard = true")
+    if self.no_hazard_no_deps:
+      params.append("no_hazard_no_deps = true")
+    return ", ".join(params)
+
+
 class MemoryRef(pallas_core.MemoryRef):
 
   def __matmul__(self, other, /):

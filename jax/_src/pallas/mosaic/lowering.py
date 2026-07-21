@@ -2220,6 +2220,14 @@ def _transform_ref(ref, ref_ty, ref_block_shape, transforms=()):
         ref, ref_block_shape = _reshape_memref(
             ref, transform, ref_ty, ref_block_shape
         )
+      case tpu_primitives.AnnotateTransform(attr=attr):
+        ref = tpu.AnnotateOp(
+            ref,
+            no_store=getattr(attr, "no_store", False),
+            no_bank_conflict=getattr(attr, "no_bank_conflict", False),
+            no_hazard=getattr(attr, "no_hazard", False),
+            no_hazard_no_deps=getattr(attr, "no_hazard_no_deps", False),
+        ).result
       case state_types.SelectTransform():
         raise NotImplementedError(
             "_transform_ref() only supports single ref transforms. Got:"
@@ -3868,7 +3876,6 @@ def _logistic_lowering_rule(ctx: LoweringRuleContext, x, accuracy=None):
     denom = arith.addf(one, exp_neg_x)
     return arith.divf(one, denom)
   return tpu.logistic(x)  # pyrefly: ignore[missing-attribute]
-
 
 
 @register_lowering_rule(lax.sin_p)

@@ -266,6 +266,22 @@ class SelectTransform(MultiRefTransform):
     return attrs[0]
 
 
+@tree_util.register_dataclass
+@dataclasses.dataclass(frozen=True, slots=True)
+class AnnotateTransform(Transform):
+  attr: Any = dataclasses.field(metadata=dict(static=True))
+
+  def transform_type(self, x: core.AbstractValue) -> core.AbstractValue:
+    return x
+
+  def undo(self, x: core.AbstractValue) -> Transform:
+    return self
+
+  def pretty_print(self, context: core.JaxprPpContext) -> pp.Doc:
+    del context
+    return pp.text(f"{{annotate({self.attr})}}")
+
+
 @dataclasses.dataclass(slots=True)
 class RefIndexer:
   """An object temporarily generated when doing ``ref.at``."""

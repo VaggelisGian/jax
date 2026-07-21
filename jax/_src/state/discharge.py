@@ -24,24 +24,31 @@ from typing import Any, Protocol, TypeVar
 from jax._src import ad_util
 from jax._src import api_util
 from jax._src import core
+from jax._src import custom_batching
+from jax._src import custom_derivatives
 from jax._src import flattree as ft
 from jax._src import linear_util as lu
 from jax._src import pjit
 from jax._src import sharding_impls
 from jax._src import source_info_util
 from jax._src import tree_util
-from jax._src import custom_batching
-from jax._src import custom_derivatives
 from jax._src.interpreters import ad
 from jax._src.interpreters import mlir
 from jax._src.interpreters import partial_eval as pe
 from jax._src.lax import lax
 from jax._src.lax import slicing as lax_slicing
 from jax._src.state import indexing
-from jax._src.state.primitives import addupdate_p, get_p, swap_p, pin, unpin
+from jax._src.state.primitives import addupdate_p, get_p, pin, swap_p, unpin
 from jax._src.state.types import (
-    AbstractLinVal, AbstractRef, BitcastTransform, RefEffect, ReshapeTransform,
-    get_ref_aval_from_value, uninitialized,)
+    AbstractLinVal,
+    AbstractRef,
+    AnnotateTransform,
+    BitcastTransform,
+    RefEffect,
+    ReshapeTransform,
+    get_ref_aval_from_value,
+    uninitialized,
+)
 from jax._src.state.utils import bitcast, hoist_consts_to_refs
 from jax._src.typing import Array
 from jax._src.util import (foreach, safe_map, safe_zip, split_list, unzip2,
@@ -512,6 +519,8 @@ def transform_array(x, transforms):
         result = bitcast(result, transform.dtype)
       case ReshapeTransform():
         result = result.reshape(transform.shape)
+      case AnnotateTransform():
+        pass
       case _:
         raise NotImplementedError(f"Unsupported transform: {transform}")
   return result
@@ -558,6 +567,8 @@ def transform_swap_array(x, transforms, val):
         intermediates.append(bitcast(new_val, transform.dtype))
       case ReshapeTransform():
         intermediates.append(new_val.reshape(transform.shape))
+      case AnnotateTransform():
+        intermediates.append(new_val)
       case _:
         raise NotImplementedError(f"Unsupported transform: {transform}")
 
@@ -587,6 +598,8 @@ def transform_swap_array(x, transforms, val):
         if transpose_order is not None:
           transpose_order_inversed = np.argsort(transpose_order)
           new_x = new_x.transpose(transpose_order_inversed)
+    elif isinstance(transform, AnnotateTransform):
+      continue
     else:
       raise NotImplementedError(f"Unsupported transform: {transform}")
 
