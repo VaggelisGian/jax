@@ -1497,6 +1497,7 @@ jax_multiplatform_test(
     tags = ["sparsecore_test"],
     deps = [
         "//jax/_src/pallas",
+        "//jax/_src/pallas/mosaic:primitives",
         "//jax/experimental:pallas",
         "//jax/experimental:pallas_fuser",
         "//jax/experimental:pallas_tpu",
