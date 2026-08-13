@@ -51,7 +51,14 @@ def pallas_call_lowering(
     metadata: frozen_dict.FrozenDict[str, str] | None,
     name: str | None,
 ):
-  del metadata, name  # TODO(sharadmv): Add metadata to HLO.
+  skip_cross_device_sync = False
+  if metadata is not None:
+    val = metadata.get("skip_cross_device_sync", False)
+    if isinstance(val, str):
+      skip_cross_device_sync = val.lower() in ("true", "1")
+    else:
+      skip_cross_device_sync = bool(val)
+  del name  # TODO(sharadmv): Add metadata to HLO.
   debug_info = jaxpr.debug_info
   del interpret, out_avals
   if grid_mapping.num_dynamic_grid_bounds:
@@ -98,7 +105,12 @@ def pallas_call_lowering(
     print(lowering_result.module.operation)
 
   return _emit_mosaic_gpu_custom_call(
-      ctx, args, lowering_result, input_output_aliases, debug_info
+      ctx,
+      args,
+      lowering_result,
+      input_output_aliases,
+      debug_info,
+      skip_cross_device_sync=skip_cross_device_sync,
   )
 
 
@@ -108,6 +120,7 @@ def _emit_mosaic_gpu_custom_call(
     lowering_result: lowering.LoweringResult,
     input_output_aliases: tuple[tuple[int, int], ...],
     debug_info,
+    skip_cross_device_sync: bool = False,
 ):
   module = lowering_result.module
   new_avals_in = list(ctx.avals_in)
@@ -138,6 +151,7 @@ def _emit_mosaic_gpu_custom_call(
       input_output_aliases=input_output_aliases,
       # False until we add get_barrier_semaphore() feature.
       use_custom_barrier=False,
+      skip_cross_device_sync=skip_cross_device_sync,
   )
   if (prof_spec := lowering_result.profiler_spec) is not None:
     *outs, prof_buffer = outs

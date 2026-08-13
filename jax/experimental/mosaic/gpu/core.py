@@ -198,6 +198,7 @@ def _mosaic_gpu_lowering_rule(
     inout_types,
     input_output_aliases: tuple[tuple[int, int], ...] = (),
     use_custom_barrier: bool = False,
+    skip_cross_device_sync: bool = False,
 ):
   axis_context = ctx.module_context.axis_context
   replica_ids = []
@@ -260,6 +261,7 @@ def _mosaic_gpu_lowering_rule(
       kernel_hash=ir.StringAttr.get(kernel_id),
       module=ir.StringAttr.get(module_asm),
       use_custom_barrier=ir.BoolAttr.get(use_custom_barrier),
+      skip_cross_device_sync=ir.BoolAttr.get(skip_cross_device_sync),
       uses_xla_collective_metadata=ir.BoolAttr.get(
           launch_context.uses_collective_metadata(module)
       ),
