@@ -74,6 +74,11 @@ class PyHostValue {
       std::optional<xla::Shape>& dynamic_shape_holder,
       xla::ifrt::Array* ifrt_array);
 
+  const tsl::Future<>& ready() const { return ready_; }
+  void set_ready(tsl::Future<> ready) { ready_ = std::move(ready); }
+  const xla::nb_numpy_ndarray& value() const { return value_; }
+  void set_value(xla::nb_numpy_ndarray value) { value_ = std::move(value); }
+
   void Clear();
 
  private:
@@ -291,6 +296,7 @@ class PyArray : public nanobind::object {
   absl::StatusOr<size_t> GetOnDeviceSizeInBytes();
   absl::StatusOr<std::pair<nanobind::object, bool>>
   SingleDeviceArrayToNumpyArrayDidCopy();
+  absl::StatusOr<std::pair<nanobind::object, bool>> ToNumpyArrayDidCopy();
   absl::StatusOr<nanobind::object> SingleDeviceArrayToNumpyArray();
   absl::Status CopySingleDeviceArrayToHostAsync();
   nanobind::dict CudaArrayInterface();
@@ -322,6 +328,8 @@ class PyArray : public nanobind::object {
 
   static absl::Status BatchedBlockUntilReady(
       std::vector<nanobind::object> objs);
+
+  static absl::Status BatchedCopyToHostAsync(nanobind::sequence py_arrays);
 
   absl::Status ReplaceWithAlias(PyArray o);
 

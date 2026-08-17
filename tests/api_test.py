@@ -2773,6 +2773,27 @@ class APITest(jtu.JaxTestCase):
     self.assertIs(y, x)
     self.assertEqual(np.asarray(y), 1.)
 
+  def test_copy_to_host_async_pytree(self):
+    # Test jax.copy_to_host_async() called with multiple arrays.
+    x = device_put(np.arange(10.0))
+    y = device_put(np.ones((4, 4), dtype=np.float32))
+    z = device_put(42)
+    pytree = {"a": x, "b": [y, z], "c": "non_array_data"}
+    res_async = jax.copy_to_host_async(pytree)
+    self.assertIs(res_async, pytree)
+    self.assertArraysEqual(np.asarray(res_async["a"]), np.arange(10.0))
+    self.assertArraysEqual(np.asarray(res_async["b"][0]), np.ones((4, 4), dtype=np.float32))
+    self.assertEqual(np.asarray(res_async["b"][1]), 42)
+
+  def test_copy_to_host_async_pytree_deleted_array(self):
+    # Test jax.copy_to_host_async() called with multiple arrays, one of which
+    # has been deleted.
+    x = device_put(np.arange(5.0))
+    y = device_put(np.arange(5.0))
+    x.delete()
+    with self.assertRaisesRegex(Exception, "Array has been deleted"):
+      jax.copy_to_host_async([x, y])
+
   def test_copy_to_host_async_non_array(self):
     # Just tests that we don't error...
     o = object()

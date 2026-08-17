@@ -788,6 +788,34 @@ class JaxArrayTest(jtu.JaxTestCase):
     x.copy_to_host_async()  # doesn't crash
     self.assertArraysEqual(np.arange(8.), x)
 
+  def test_copy_to_host_async_fully_sharded(self):
+    global_mesh = jtu.create_mesh((2,), ('x',))
+    x = jax.jit(lambda: jnp.arange(16.).reshape((4, 4)),
+                out_shardings=jax.NamedSharding(global_mesh, P('x', None)))()
+    x.copy_to_host_async()
+    self.assertArraysEqual(np.arange(16.).reshape((4, 4)), x)
+
+  def test_copy_to_host_async_partially_replicated(self):
+    global_mesh = jtu.create_mesh((2, 2), ('x', 'y'))
+    x = jax.jit(lambda: jnp.arange(8.),
+                out_shardings=jax.NamedSharding(global_mesh, P('x')))()
+    x.copy_to_host_async()
+    self.assertArraysEqual(np.arange(8.), x)
+
+  def test_copy_to_host_async_fully_replicated(self):
+    global_mesh = jtu.create_mesh((2, 2), ('x', 'y'))
+    x = jax.jit(lambda: jnp.arange(8.),
+                out_shardings=jax.NamedSharding(global_mesh, P(None)))()
+    x.copy_to_host_async()
+    self.assertArraysEqual(np.arange(8.), x)
+
+  def test_copy_to_host_async_non_contiguous_sharding(self):
+    global_mesh = jtu.create_mesh((2, 2), ('x', 'y'))
+    x = jax.jit(lambda: jnp.arange(16.).reshape((4, 4)),
+                out_shardings=jax.NamedSharding(global_mesh, P(None, 'y')))()
+    x.copy_to_host_async()
+    self.assertArraysEqual(np.arange(16.).reshape((4, 4)), x)
+
   def test_array_fully_replicated_shard(self):
 
     global_mesh = jtu.create_mesh((4, 2), ('x', 'y'))

@@ -37,7 +37,7 @@ from jax._src.op_shardings import are_hlo_shardings_equal
 from jax._src.interpreters import mlir
 from jax._src.interpreters import pxla
 from jax._src.layout import AutoLayoutSingleton, Format, Layout
-from jax._src.lib import _jax
+from jax._src.lib import _jax, jaxlib_extension_version
 from jax._src.lib import xla_client as xc
 from jax._src.mesh import (empty_concrete_mesh, empty_abstract_mesh,
                            use_abstract_mesh)
@@ -618,6 +618,10 @@ class ArrayImpl(basearray.Array):
     ...
 
   @use_cpp_method()
+  def _to_np_array_did_copy(self) -> tuple[np.ndarray, bool]:
+    ...
+
+  @use_cpp_method()
   def _copy_single_device_array_to_host_async(self):
     self._arrays[0].copy_to_host_async()
 
@@ -628,8 +632,14 @@ class ArrayImpl(basearray.Array):
       if self.is_fully_replicated and self.sharding.has_addressable_devices:
         self._copy_single_device_array_to_host_async()
         return
-      for i, _ in _cached_index_calc(self.sharding, self.shape):
-        self._arrays[i]._copy_single_device_array_to_host_async()
+
+      if jaxlib_extension_version >= 484:
+        # Call `batched_copy_to_host_async`, as it can more efficiently copy
+        # array shards to the host than the individual shard copies below.
+        _jax.batched_copy_to_host_async([self])
+      else:
+        for i, _ in _cached_index_calc(self.sharding, self.shape):
+          self._arrays[i]._copy_single_device_array_to_host_async()
 
   @property
   @functools.partial(profiler.annotate_function, name="np.asarray(jax.Array)")
@@ -657,6 +667,13 @@ class ArrayImpl(basearray.Array):
             " global array or use `.addressable_shards` method of jax.Array to"
             " inspect the addressable (process local) shards."
         )
+
+      if jaxlib_extension_version >= 484:
+        npy_value, did_copy = self._to_np_array_did_copy()
+        npy_value.flags.writeable = False
+        if did_copy:
+          self._npy_value = npy_value
+        return npy_value
 
       for i, _ in _cached_index_calc(self.sharding, self.shape):
         self._arrays[i]._copy_single_device_array_to_host_async()
