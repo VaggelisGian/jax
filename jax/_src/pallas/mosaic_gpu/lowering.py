@@ -4624,6 +4624,31 @@ def _check_lowering_rule(ctx: LoweringRuleContext, *err_args, err_tree, debug):
   cf_dialect.assert_(not_pred, exception.fmt_string)
   return []
 
+
+@register_lowering_rule(pjit.relayout_p, mgpu.LoweringSemantics.Lane)
+def _relayout_lowering_lane(
+    ctx: LoweringRuleContext, x, *, dst_layout
+):
+  del ctx, x, dst_layout
+  raise NotImplementedError(
+      "relayout_p is not supported with Lane semantics."
+  )
+
+
+@register_lowering_rule(pjit.relayout_p, mgpu.LoweringSemantics.Warpgroup)
+def _relayout_lowering_wg(
+    ctx: LoweringRuleContext, x, *, new_layout
+):
+  layout = new_layout.to_mgpu()
+  if ctx.avals_in[0].ndim == 0:  # scalar case
+    if layout != mgpu.WGSplatFragLayout():
+      raise ValueError(
+          "Only plgpu.Layout.WG_SPLAT is supported for scalar values."
+      )
+    return x
+  return mgpu.dialect.layout_cast(x, mgpu.to_layout_attr(layout))
+
+
 @register_lowering_rule(gpu_core.layout_cast_p, mgpu.LoweringSemantics.Lane)
 def _layout_cast_lowering(ctx: LoweringRuleContext, x, *, new_layout):
   del ctx  # Unused.
