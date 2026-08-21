@@ -375,7 +375,7 @@ class FuserUtilsTest(jtu.JaxTestCase):
     v1 = np.ones((128, 128), dtype=np.float32)
     v2 = np.ones((128, 128), dtype=np.float32)
 
-    (filtered_v, filtered_bs) = fuser_utils.filter_no_block_specs(
+    (filtered_v, filtered_bs) = fuser_utils._filter_no_block_specs(
         (v1, v2), (bs1, bs2)
     )
     self.assertIs(filtered_v[0], v1)

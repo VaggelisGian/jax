@@ -240,7 +240,7 @@ def jaxpr_all_prims(jaxpr: core.Jaxpr) -> set[core.Primitive]:
   return prims
 
 
-def filter_no_block_specs(values, block_specs):
+def _filter_no_block_specs(values, block_specs):
   """Filters out values and block specs that have no_block_spec by replacing them with None."""
   filtered_values = tree_util.tree_map(
       lambda v, bs: v if bs is not pallas_core.no_block_spec else None,
